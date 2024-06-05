@@ -1,85 +1,53 @@
 <?php
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
-    header("Location: user_login.php");
-    exit;
-}
+elseif (isset($_POST['upload'])) {
+    $target_dir = "uploads/";
+    $target_file = $target_dir. basename($_FILES["profile_picture"]["name"]);
+    $uploadOk = 1;
+    $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
 
-include("db_connect.php");
-$conn = connectDB();
-
-$user_id = $_SESSION['user_id'];
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['update'])) {
-        $biodata = $_POST['biodata'];
-
-        $stmt = $conn->prepare("UPDATE users SET biodata = ? WHERE id = ?");
-        $stmt->bind_param("si", $biodata, $user_id);
-
-        if ($stmt->execute()) {
-            $_SESSION['success_message'] = "Profile updated successfully!";
-        } else {
-            $_SESSION['error_message'] = "Failed to update profile.";
-        }
-
-        $stmt->close();
-    } elseif (isset($_POST['delete'])) {
-        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-
-        if ($stmt->execute()) {
-            session_destroy();
-            header("Location: user_register.php");
-            exit;
-        } else {
-            $_SESSION['error_message'] = "Failed to delete profile.";
-        }
-
-        $stmt->close();
-    } elseif (isset($_POST['upload'])) {
-        $target_dir = "uploads/";
-        $target_file = $target_dir . basename($_FILES["profile_picture"]["name"]);
+    // Check if image file is a actual image or fake image
+    $check = getimagesize($_FILES["profile_picture"]["tmp_name"]);
+    if($check!== false) {
         $uploadOk = 1;
-        $imageFileType = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
+    } else {
+        $uploadOk = 0;
+        $_SESSION['error_message'] = "File is not an image.";
+    }
 
-        // Check if image file is a actual image or fake image
-        $check = getimagesize($_FILES["profile_picture"]["tmp_name"]);
-        if($check !== false) {
-            $uploadOk = 1;
-        } else {
-            $uploadOk = 0;
-        }
+    // Check file size
+    if ($_FILES["profile_picture"]["size"] > 500000) {
+        $uploadOk = 0;
+        $_SESSION['error_message'] = "File is too large.";
+    }
 
-        // Check file size
-        if ($_FILES["profile_picture"]["size"] > 500000) {
-            $uploadOk = 0;
-        }
+    // Allow certain file formats
+    $allowedTypes = array('jpg', 'png', 'jpeg');
+    if(!in_array($imageFileType, $allowedTypes)) {
+        $uploadOk = 0;
+        $_SESSION['error_message'] = "Only JPG, PNG, and JPEG files are allowed.";
+    }
 
-        // Allow certain file formats
-        if($imageFileType != "jpg" && $imageFileType != "png" && $imageFileType != "jpeg") {
-            $uploadOk = 0;
-        }
+    if ($uploadOk == 1) {
+        if (move_uploaded_file($_FILES["profile_picture"]["tmp_name"], $target_file)) {
+            $stmt = $conn->prepare("UPDATE users SET picture =? WHERE id =?");
+            $stmt->bind_param("si", $target_file, $user_id);
 
-        if ($uploadOk == 1) {
-            if (move_uploaded_file($_FILES["profile_picture"]["tmp_name"], $target_file)) {
-                $stmt = $conn->prepare("UPDATE users SET picture = ? WHERE user_id = ?");
-                $stmt->bind_param("si", $target_file, $user_id);
-
-                if ($stmt->execute()) {
-                    $_SESSION['success_message'] = "Profile picture updated successfully!";
-                } else {
-                    $_SESSION['error_message'] = "Failed to update profile picture.";
-                }
-
-                $stmt->close();
+            if ($stmt->execute()) {
+                $_SESSION['success_message'] = "Profile picture updated successfully!";
+            } else {
+                $_SESSION['error_message'] = "Failed to update profile picture.";
             }
+
+            $stmt->close();
         } else {
             $_SESSION['error_message'] = "Failed to upload image.";
         }
     }
 }
+
+
 
 $stmt = $conn->prepare("SELECT username, phone, email, biodata, picture FROM users WHERE user_id = ?");
 $stmt->bind_param("i", $user_id);
